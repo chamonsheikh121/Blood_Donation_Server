@@ -4,11 +4,25 @@ const app = express()
 const cors = require('cors')
 const jwt = require('jsonwebtoken')
 require('dotenv').config()
-const port = 5000
+const port = process.env.PORT || 5000
 
 //MIDDLEWARE
+const allowedOrigins = ['https://blood-donation-aedcb.web.app', 
+  'http://localhost:5173',
+  'https://nova-essentials.store'
 
-app.use(cors());
+];
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  }
+};
+app.use(cors(corsOptions));
 app.use(express.json())
 
 
@@ -34,6 +48,8 @@ async function run() {
     const requestCollection = mongodb.collection('All-requests')
     const acceptedCollection = mongodb.collection('All-accepted')
     const messageCollection = mongodb.collection('messages')
+    const postCollection = mongodb.collection('posts')
+    const peoplesCommentsCollection = mongodb.collection('PeoplesComments')
 
 
     // ======================= user verification ================================
@@ -65,7 +81,7 @@ async function run() {
       const filter = { donarEmail: email };
       const user = await usersCollection.findOne(filter);
       const isAdmin = user?.userRole === 'admin';
-      console.log(isAdmin);
+      // console.log(isAdmin);
       if (!isAdmin) {
         return res.status(403).send({ message: 'forbidden access' });
       }
@@ -76,7 +92,7 @@ async function run() {
       const filter = { donarEmail: email };
       const user = await usersCollection.findOne(filter);
       const isAdmin = user?.userRole === 'volunteer';
-      console.log(isAdmin);
+      // console.log(isAdmin);
       if (!isAdmin) {
         return res.status(403).send({ message: 'forbidden access' });
       }
@@ -88,6 +104,7 @@ async function run() {
     // =========================== all data api ======================================
 
     app.post('/api/v1/all-users', async (req, res) => {
+
       const userDetails = req?.body;
       const RegisteredCount = await usersCollection.countDocuments()
       for (var i = 0; i < RegisteredCount; i++) {
@@ -102,15 +119,17 @@ async function run() {
         }
       }
 
-
     })
-    app.delete('/api/v1/delete-user', verifyToken, adminVerify, async (req, res) => {
+    app.delete('/api/v1/delete-user', async (req, res) => {
+
       const email = req?.query.email;
       const filter = { donarEmail: email };
       const result = await usersCollection.deleteOne(filter);
       res.send(result);
+
     })
-    app.patch('/api/v1/userRole', verifyToken, adminVerify, async (req, res) => {
+    app.patch('/api/v1/userRole', async (req, res) => {
+
       const body = req.body;
       const filter = { donarEmail: body?.email }
       const doc = {
@@ -120,8 +139,10 @@ async function run() {
       }
       const result = await usersCollection.updateOne(filter, doc);
       res.send(result)
+
     })
-    app.patch('/api/v1/userStatus', verifyToken, adminVerify, async (req, res) => {
+    app.patch('/api/v1/userStatus', async (req, res) => {
+
       const body = req.body;
       const filter = { donarEmail: body?.email }
       const doc = {
@@ -131,12 +152,15 @@ async function run() {
       }
       const result = await usersCollection.updateOne(filter, doc);
       res.send(result)
+
     })
-    app.get('/api/v1/all-users', verifyToken, async (req, res) => {
+    app.get('/api/v1/all-users', async (req, res) => {
+
       const result = await usersCollection.find().sort({ _id: -1 }).toArray();
       res.send(result)
+
     })
-    app.get('/api/v1/user/:value', verifyToken, async (req, res) => {
+    app.get('/api/v1/user/:value', async (req, res) => {
       const idOrEmail = req?.params?.value;
       const email = idOrEmail.includes('@');
       if (email) {
@@ -155,21 +179,26 @@ async function run() {
 
     })
     app.get('/api/v1/find-user', async (req, res) => {
+
       const email = req?.query?.email
       // console.log('email', email);
       const filter = { donarEmail: email };
       const result = await usersCollection.findOne(filter);
       // console.log(result);
       res.send(result)
+
     })
     app.get('/api/v1/user-search/:uid', async (req, res) => {
+
       const uid = req?.params?.uid;
       const uidNumber = parseInt(uid)
       const filter = { userUID: uidNumber };
       let result = await usersCollection.findOne(filter);
       res.send(result)
+
     })
     app.patch('/api/v1/user-profile', async (req, res) => {
+
       const data = req.body;
       // console.log(data);
       const filter = { donarEmail: data?.donarEmail }
@@ -209,8 +238,10 @@ async function run() {
         res.send(result)
       }
 
+
     })
     app.post('/api/v1/all-request', async (req, res) => {
+
       const requestedInfo = req.body;
       const requested = await requestCollection.find().toArray();
       if (requested?.length >= 0) {
@@ -220,32 +251,32 @@ async function run() {
       const result = await requestCollection.insertOne(requestedInfo);
       res.send(result)
 
+
     })
-    app.delete('/app/v1/delete-request', verifyToken, adminVerify, async (req, res) => {
+    app.delete('/app/v1/delete-request', async (req, res) => {
+
       const id = req?.query?.id;
       const filter = { _id: new ObjectId(id) };
       const result = await requestCollection.deleteOne(filter);
       const anotherFilter = { requestedId: id };
       const result1 = await acceptedCollection.deleteOne(anotherFilter)
       res.send(result)
+
     })
     app.post('/api/v1/all-acceptedRequest', async (req, res) => {
-      try {
-        const AcceptedUserDetails = req?.body;
-        const id = AcceptedUserDetails?.requestedId
-        const filter = { _id: new ObjectId(id) };
-        const updateDoc = {
-          $set: {
-            status: 'accepted'
-          }
+
+      const AcceptedUserDetails = req?.body;
+      const id = AcceptedUserDetails?.requestedId
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: {
+          status: 'accepted'
         }
-        const result1 = await requestCollection.updateOne(filter, updateDoc)
-        const result2 = await acceptedCollection.insertOne(AcceptedUserDetails);
-        res.send(result2);
       }
-      catch (err) {
-        console.log(err);
-      }
+      const result1 = await requestCollection.updateOne(filter, updateDoc)
+      const result2 = await acceptedCollection.insertOne(AcceptedUserDetails);
+      res.send(result2);
+
     })
     app.get('/api/v1/my-acceptation/:email', async (req, res) => {
       const email = req?.params?.email
@@ -254,12 +285,15 @@ async function run() {
       res.send(result)
     })
     app.get('/api/v1/accepter-details/:email', async (req, res) => {
+
       const email = req?.params?.email
       const filter = { donarEmail: email };
       const result = await acceptedCollection.find(filter).sort({ _id: -1 }).toArray();
       res.send(result)
+
     })
     app.patch('/api/v1/acceptedRequests/:id', async (req, res) => {
+
       const id = req?.params?.id;
       const filter = { requestedId: id }
       const updateDoc = {
@@ -269,59 +303,62 @@ async function run() {
       }
       const result = await acceptedCollection.updateOne(filter, updateDoc);
       res.send(result)
+
     })
     app.get('/api/v1/my-requests/:email', async (req, res) => {
+
       const email = req?.params?.email;
       const filter = { donarEmail: email };
       const result = await requestCollection.find(filter).toArray();
       res.send(result)
+
     })
 
 
     // =============================== find one request ========================
     app.get('/api/v1/findOne/:value', async (req, res) => {
-      try {
 
-        const idOrSerialNumber = req?.params?.value
-        if (/^\d+$/.test(idOrSerialNumber)) {
-          const serialNumber = parseInt(idOrSerialNumber);
-          const filter = { serialNumber: serialNumber }
-          const resultSerial = await requestCollection.findOne(filter);
-          console.log(idOrSerialNumber);
-          res.send(resultSerial)
-          return;
-        }
-        else if (/^[a-fA-F0-9]{24}$/.test(idOrSerialNumber)) {
-          const filter = { _id: new ObjectId(idOrSerialNumber) };
-          const result = await requestCollection.findOne(filter);
-          console.log(filter, result);
-          res.send(result)
-          return
-        }
-        else {
-          res.send(null)
-        }
+
+      const idOrSerialNumber = req?.params?.value
+      if (/^\d+$/.test(idOrSerialNumber)) {
+        const serialNumber = parseInt(idOrSerialNumber);
+        const filter = { serialNumber: serialNumber }
+        const resultSerial = await requestCollection.findOne(filter);
+        // console.log(idOrSerialNumber);
+        res.send(resultSerial)
+        return;
       }
-      catch (err) {
-        console.log(err);
+      else if (/^[a-fA-F0-9]{24}$/.test(idOrSerialNumber)) {
+        const filter = { _id: new ObjectId(idOrSerialNumber) };
+        const result = await requestCollection.findOne(filter);
+        // console.log(filter, result);
+        res.send(result)
+        return
       }
+      else {
+        res.send(null)
+      }
+
     })
     app.get('/api/v1/all-request-count', async (req, res) => {
+
       const filter = { status: 'active' }
       const count = await requestCollection.countDocuments(filter);
-      // console.log(count);
       const result = await requestCollection.find(filter).sort({ _id: -1 }).toArray()
-      // console.log(result);
       res.send({ count: count, data: result })
+
     })
     app.get('/api/v1/pending', async (req, res) => {
+
       const filter = { status: 'pending' }
       const count = await requestCollection.countDocuments(filter);
       const result = await requestCollection.find(filter).sort({ _id: -1 }).toArray();
       res.send(result)
+
     })
 
     app.patch('/api/v1/update-request', async (req, res) => {
+
       const data = req?.body;
       const id = data?.requestId
       const filter = { _id: new ObjectId(id) }
@@ -343,9 +380,11 @@ async function run() {
       }
       const result = await requestCollection.updateOne(filter, updateDoc);
       res.send(result)
+
     })
 
-    app.patch('/api/v1/update-request-status', verifyToken, async (req, res) => {
+    app.patch('/api/v1/update-request-status', async (req, res) => {
+
       const id = req?.query?.id
       const filter = { _id: new ObjectId(id) };
       const data = await requestCollection.findOne(filter);
@@ -363,9 +402,11 @@ async function run() {
       }
       const result = await requestCollection.updateOne(filter, doc);
       res.send(result)
+
     })
 
     app.patch('/api/v1/profile-message-count', async (req, res) => {
+
       const email = req?.query?.email;
       const filter = { donarEmail: email };
       const updateDoc = {
@@ -374,18 +415,22 @@ async function run() {
         }
       }
       const result = await usersCollection.updateOne(filter, updateDoc)
+
     })
 
     app.get('/api/v1/message', async (req, res) => {
+
       const email = req?.query?.email;
       const filter = { email: email };
-      console.log(filter);
+      // console.log(filter);
       const result = await messageCollection.find(filter).sort({ _id: -1 }).toArray();
       res.send(result)
+
     })
-    app.post('/api/v1/post-message', verifyToken, async (req, res) => {
+    app.post('/api/v1/post-message', async (req, res) => {
+
       const message = req?.body;
-      console.log(message);
+      // console.log(message);
       const filter = { donarEmail: message?.email }
       const profile = await usersCollection.findOne(filter)
       const doc = {
@@ -396,8 +441,10 @@ async function run() {
       await usersCollection.updateOne(filter, doc)
       const result = await messageCollection.insertOne(message);
       res.send(result)
+
     })
-    app.patch('/api/v1/update-message', verifyToken, async (req, res) => {
+    app.patch('/api/v1/update-message', async (req, res) => {
+
       const id = req?.query?.id;
       const filter = { _id: new ObjectId(id) };
       const updateDoc = {
@@ -407,6 +454,95 @@ async function run() {
       }
       const result = await messageCollection.updateOne(filter, updateDoc);
       res.send(result)
+
+    })
+    app.post('/api/v1/blogs', async (req, res) => {
+
+      const data = req?.body;
+      const result = await postCollection.insertOne(data);
+      res.send(result)
+
+    })
+    app.get('/api/v1/get-blogs', async (req, res) => {
+
+      const email = req?.query?.email;
+      const isEmail = email?.includes('@')
+      if (isEmail) {
+
+        const filter = { email: email };
+        const result = await postCollection.find(filter).sort({ _id: -1 }).toArray();
+        res.send(result)
+      }
+      else {
+
+        const result = await postCollection.find().sort({ _id: -1 }).toArray();
+        res.send(result)
+      }
+
+    })
+
+    app.patch('/api/v1/impressionCount', async (req, res) => {
+
+      const id = req?.query?.id;
+      const filter = { _id: new ObjectId(id) };
+      const post = await postCollection.findOne(filter);
+      const updateDoc = {
+        $set: {
+          impressionCount: post?.impressionCount + 1
+        }
+      }
+      const result1 = await postCollection.updateOne(filter, updateDoc);
+      res.send(result1)
+
+    })
+    app.patch('/api/v1/likeCount', async (req, res) => {
+
+      const { id, email } = req?.query
+      console.log(id, email);
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $push: { likers: email }
+      }
+      const result = await postCollection.updateOne(filter, updateDoc);
+      res.send(result)
+
+    })
+
+    app.post('/api/v1/post-comment', async (req, res) => {
+
+      const commentInfo = req?.body;
+      const id = commentInfo?.blogID;
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $push: { comments: commentInfo }
+      }
+      const result = await postCollection.findOneAndUpdate(filter, updateDoc, { returnDocument: 'after', projection: { "comments": { $slice: -1 } } });
+      console.log(filter);
+      res.send(result);
+
+    })
+    app.get('/api/v1/peoplesComments', async (req, res) => {
+
+      const email = req?.query?.email;
+
+      if (email && email?.includes('@')) {
+        const filter = { email: email };
+        const result = await peoplesCommentsCollection.find(filter).sort({ _id: -1 }).toArray();
+        res.send(result);
+      } else {
+        const result = await peoplesCommentsCollection.find().sort({ _id: -1 }).toArray();
+        res.send(result);
+      }
+
+
+
+    })
+    app.post('/api/v1/post-review', async (req, res) => {
+
+      const reviewData = req?.body
+      const result = await peoplesCommentsCollection.insertOne(reviewData);
+      res.send(result)
+
     })
 
     await client.db("admin").command({ ping: 1 });
